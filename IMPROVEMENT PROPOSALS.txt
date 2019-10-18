@@ -1,0 +1,10 @@
+IMPROVEMENT PROPOSALS
+
+1
+should implement genes of the same type as a 2D list where each row is a new gene with its properties,
+this way we could access a certain property of all the genes simply by genes[:][property]
+
+2
+dependign on improvement 1, make the program work with dicts instead of classes. This would be a bit faster.
+Classes are being used at the moment since they make it more readale and might make the code easier to translate
+to another language
