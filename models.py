@@ -5,7 +5,6 @@ class NodeGene:
         assert (type in ['input', 'output', 'hidden'])
         self.type = type
         self.id = id
-        # self.innovation_number = innovation_number
 
 
 class ConnectionGene:
@@ -21,8 +20,23 @@ class ConnectionGene:
 
 class Genome:
 
-    def __init__(self, node_genes=[], connection_genes=[]):
-        self.node_genes = node_genes
-        self.connection_genes = connection_genes
+    def __init__(self, node_genes={}, connection_genes={}):
+        self.node_genes = node_genes        # mapping from node_id (int) to NodeGene
+        self.connection_genes = connection_genes        # mapping from innovation_number (int) to ConnectionGene
         self.fitness = 0
+
+    def get_innovation_numbers(self):
+        return list(self.connection_genes.keys())
+
+    def __len__(self):
+        return  len(self.node_genes) + len(self.connection_genes)
+
+    def print(self):
+        print('Node genes:')
+        for node in self.node_genes:
+            print(node.id, node.type)
+        print('Connection genes:')
+        for cg in self.connection_genes:
+            print('input', cg.input_node_id, 'output', cg.output_node_id, 'innovation number', cg.innovation_number,
+                  'weight', cg.weight, 'is expressed', cg.expressed)
 
