@@ -7,7 +7,7 @@ genome = Genome()
 
 def next_node_id(genome):       # TODO this can be optimised by following suggestion 1 (see top)
     """ returns the next node id to be used (one larger than the current largest) """
-    return max([node.id for node in genome.node_genes]) + 1
+    return max(list(genome.node_genes.keys())) + 1
 
 
 def add_connection(genome, innovation_number, weight=1):
@@ -17,7 +17,7 @@ def add_connection(genome, innovation_number, weight=1):
 
     # TODO figure out recurrent and self connections
     new_connection_gene = ConnectionGene(node0.id, node1.id, innovation_number, weight)
-    genome.connection_genes.append(new_connection_gene)
+    genome.connection_genes[innovation_number] = new_connection_gene
 
 
 def add_node(genome, innovation_number):
@@ -33,37 +33,92 @@ def add_node(genome, innovation_number):
     connection0_weight = 1
     connection0 = ConnectionGene(genome.connection_genes[connection_id].input_node_id, new_node.id, innovation_number,
                                  weight=connection0_weight)
-    genome.connection_genes.append(connection0)
+    genome.connection_genes[innovation_number] = connection0
 
-    connection1_weight = 1
+    connection1_weight = genome.connection_genes[connection_id].weight          # out connection has the same weight at old connection
     connection1 = ConnectionGene(new_node.id, genome.connection_genes[connection_id].output_node_id, innovation_number+1,
                                  weight=connection1_weight)
-    genome.connection_genes.append(connection1)
+    genome.connection_genes[innovation_number] = connection1
+    genome.node_genes[new_node.id] = new_node
 
 
 def remove_connection(genome):
-    connection_gene_id = random.randint(0, len(genome.connection_genes)-1)
-    genome.connection_genes[connection_gene_id] = None      # this makes sure that all connection_gene lists are as long as the latest innovation number
+    cg_innovation_number = random.randint(0, len(genome.connection_genes)-1)
+    del genome.connection_genes[cg_innovation_number]
 
 
-def crossover(genome0, genome1):
-    """ only genes that share the same innovation number can be mixed """
-    # TODO this mehtod will be very inefficent, find a better one. Could be done by somehow indexing te connection genes
-    # TODO by their innovation numbers since each genome must have hadd all the innovation numbers up to its largest one
-    # TODO some could be missing though as they might have been removed
-    new_connection_genes = []
+def crossover(fittest_genome, genome1):
+    """ we are assuming fittest_genome to be fitter than genome1 """
 
-    fittest_genome = None if genome0.fitness == genome1.fitness else genome0 if genome0.fitness > genome1.fitness else genome1
+    new_connection_genes = {}
+    for inn_num in fittest_genome.get_innovation_numbers():
+        if inn_num in genome1.get_innovation_numbers():
+            new_connection_genes[inn_num] = random.choice([fittest_genome.connection_genes[inn_num], genome1.connection_genes[inn_num]])
+        else:   # excess or disjoint gene, inheriting from the fittest gene
+            new_connection_genes[inn_num] = fittest_genome.connection_genes[inn_num]
 
-    max_innovation_number = max(len(genome0.connection_genes), len(genome1.connection_genes))
-    for inn_num in range(max_innovation_number):
-        if genome0.connection_genes[inn_num] is None or genome1.connection_genes[inn_num] is None:   # they are either disjoint or excess
-            # inherit from the fittest parent
-            if fittest_genome is None:      # the parent fitness is the same so we inherit randomly
-                new_connection_genes.append(random.choice([genome0.connection_genes[inn_num], genome1.connection_genes[inn_num]]))
-            else:
-                new_connection_genes.append(fittest_genome.connection_genes[inn_num])
-        else:       # both parents contain a gene with this innovation number so pick randomly
-            # TODO figure out if genes with the same innovation number only differ by their connection weights (probably yes)
-            new_connection_genes.append(random.choice([genome0.connection_genes[inn_num], genome1.connection_genes[inn_num]]))
+    # nodes are inherited from the fittest genome
+    new_node_genes = {}
+    for node in list(fittest_genome.items()):
+        new_node_genes[node.id] = node
+
+
+# TODO      excess_genes(), disjoint_genes() and average_weight_differences() will usually get called one after the other
+# TODO      they all loop through all of the genes so they could probably be grouped into one function doing everything at the same time
+
+def excess_genes(genome0, genome1):
+    """ returns a list of the excess genes between genome0 and genome1 """
+    excess_genes = []
+
+    if max(genome0.get_innovation_numbers()) == max(genome1.get_innovation_numbers()):  # there are no excess genes
+        return excess_genes
+
+    genomes = [genome0, genome1]
+    inn_nums = [max(genome0.get_innovation_numbers()), max(genome1.get_innovation_numbers())]
+    max_id = inn_nums.index(max(inn_nums))          # genomes[max_id] is the longest genome
+    min_inn_num = min(inn_nums)             # smallest of the two last innovation numbers. Excess genes start from here
+
+    for inn_num in range(min_inn_num, max(inn_nums)):
+        if inn_num in genomes[max_id].get_innovation_numbers():
+            excess_genes.append(genomes[max_id].connection_genes[inn_num])
+
+    return excess_genes
+
+
+def disjoint_genes(genome0, genome1):
+    """ returns a list of the disjoint genes between genome0 and genome1
+    these are the genes which innovation numbers appear in only one of the genomes, but before the last innovation number
+    of the shortest genome (they are not in the excessive part of the longer genome) """
+    disjoint_genes = []
+    for inn_num in range(min(genome0.get_innovation_numbers() + genome1.get_innovation_numbers())):
+        if inn_num in genome0.get_innovation_numbers() and inn_num not in genome1.get_innovation_numbers():
+            disjoint_genes.append(genome0.connection_genes[inn_num])
+        elif inn_num not in genome0.get_innovation_numbers() and inn_num in genome1.get_innovation_numbers():
+            disjoint_genes.append(genome1.connection_genes[inn_num])
+
+    return disjoint_genes
+
+
+def weight_differences(genome0, genome1):
+    """ returns the connection weight differences between common connections in the two genomes """
+    w_differences = []
+    min_inn_num = min(max(genome0.get_innovation_numbers()), max(genome1.get_innovation_numbers()))
+    for i in range(min_inn_num):
+        if i in genome0.get_innovation_numbers() and i in genome1.get_innovation_numbers():
+            w_differences.append(abs(genome0.connection_genes[i] - genome1.connection_genes[i]))
+    return  w_differences
+
+
+def compatibility_distance(genome0, genome1):
+    N = max([len(genome0), len(genome1)])       # this is sometimes left as 1 if the lengths are smaller than 20 for example
+    c0, c1, c2 = 1, 1, 1        # coefficients  # TODO what values should these have?
+    E = len(excess_genes(genome0, genome1))
+    D = len(disjoint_genes(genome0, genome1))
+    w_differences = weight_differences(genome0, genome1)
+    W = sum(w_differences) / len(w_differences)
+    delta = c0*E/N + c1*D/N + c2*W
+
+
+# TODO
+def adjusted_fitness()
 
