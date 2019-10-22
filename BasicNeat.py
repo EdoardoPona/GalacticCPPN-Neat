@@ -117,8 +117,27 @@ def compatibility_distance(genome0, genome1):
     w_differences = weight_differences(genome0, genome1)
     W = sum(w_differences) / len(w_differences)
     delta = c0*E/N + c1*D/N + c2*W
+    
+    
+def adjusted_fitness(specie, fitness):
+    """ Each specie si a list of networks, of which the first is the representative
+    the compatibility distance with a certain specie is computed with regards to the representative """
+    return fitness / sum(len(specie))
 
 
-# TODO
-def adjusted_fitness()
+def assign_specie(population, genome, compatibility_threshold=3):       # TODO check com thresh value
+    """ population is a list of species. each specie is a list of genomes. the first genome in a specie is its 'founder'
+    this is the genome with regards to which the compatibility distance of a new genome will be compared """
+    distances = [compatibility_distance(genome, specie[0]) for specie in population]
+    closest_specie = distances.index(min(distances))
+    if closest_specie < compatibility_threshold:
+        population[closest_specie].append(genome)
+    else:       # founding a new specie if the genome doesn't fit in any
+        population.append([genome])
+
+
+def run_genome(genome, inputs):
+    """ this function recursively runs the genome starting from the output nodes. this assumes that all the networks are exclusively feed-forward.
+    Backwards connections would run in an endless loop """
+    def run_node
 
